@@ -23,6 +23,7 @@ Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, KROWS, KCOLS);
 void setup() {
     Serial.begin(9600);
     pinMode(BUZZER_PIN, OUTPUT);
+    pinMode(SS_PIN, OUTPUT);  // necessary for analog pin A0
 }
 
 void loop() {
