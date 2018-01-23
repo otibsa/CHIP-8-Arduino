@@ -13,3 +13,6 @@ Session.vim
 # Auto-generated tag files
 tags
 
+
+# arduino-mk build directory
+build-*
