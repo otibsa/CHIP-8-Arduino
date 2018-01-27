@@ -303,6 +303,7 @@ void hex_editor(uint16_t address, uint16_t len) {
         // move cursor
         switch (c) {
         case '5':
+            // edit
             beep_n(1);
             new_value = from_hex(keypad.waitForKey());
             oled.drawChar(3*(cursor%8), cursor/8, to_hex(new_value&0xF));
@@ -315,6 +316,12 @@ void hex_editor(uint16_t address, uint16_t len) {
             modified_page = true;
             show_cursor(cursor, true);
             beep_n(1);
+            break;
+        case '0':
+            // save
+            eeprom.write(address+page*64, buffer, page==last_page ? last_cursor+1 : sizeof(buffer));
+            beep_n(3);
+            modified_page = false;
             break;
         case '2':
             // up
