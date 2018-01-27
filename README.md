@@ -21,6 +21,6 @@ All used libraries are included in the lib/ folder.
 # TODO
 * ~~Write the README~~
 * Cleanup repository structure
-* Include used libraries?
+* ~~Include used libraries~~
 * Include Fritzing diagram
 * Actually write the software

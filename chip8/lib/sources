@@ -1,0 +1,5 @@
+* Adafruit_SSD1306: modified from https://github.com/adafruit/Adafruit_SSD1306
+* CHIP8: custom made
+* I2C_EEPROM: custom made
+* Keypad: https://github.com/Chris--A/Keypad
+* SpiRAM: https://playground.arduino.cc/uploads/Main/spiRAM3a.zip
