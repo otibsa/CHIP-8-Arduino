@@ -16,6 +16,8 @@
 #define EEPROM_ADDRESS 0x50  // external EEPROM 24AA256
 #define BUTTON_PIN A3
 
+#define MOD(a,b) ((a)>=0 ? (a)%(b) : (((a)%(b)) + (b)) % (b))
+#define MIN(a,b) ((a)<(b) ? (a) : (b))
 #define swap_u16(w) ( ((w&0xFF00) >> 8) | ((w&0xFF) << 8) )
 
 char keys[KROWS][KCOLS] {
@@ -44,7 +46,7 @@ void beep_n(int n);
 uint8_t hc2u8(char c);
 uint16_t input_program();
 void print_byte(uint8_t b);
-void hex_editor(uint16_t address);
+void hex_editor(uint16_t address, uint16_t len);
 void show_cursor(uint8_t cursor, bool highlight);
 void show_memory_page(uint16_t address, uint8_t *buffer, uint8_t len);
 void show_address(uint16_t address);
@@ -71,7 +73,7 @@ void setup() {
     //delay(500);
     //oled.show(10,0, 10,0, true);
     //oled.show(10,0, 10,1, true);
-    hex_editor(0);
+    hex_editor(0, 50);
     return;
 
     button_now = digitalRead(BUTTON_PIN) == HIGH;
@@ -262,7 +264,7 @@ uint8_t hc2u8(char c) {
 }
 
 
-void hex_editor(uint16_t address) {
+void hex_editor(uint16_t address, uint16_t len) {
     // show and modify contents of the external EEPROM
     uint8_t buffer[64];
     uint8_t cursor = 0;
@@ -270,6 +272,8 @@ void hex_editor(uint16_t address) {
     uint8_t old_cursor = 1;
     uint16_t old_page = 1;
     bool modified_page = false;
+    uint16_t last_page = (address+len)/64;
+    uint8_t last_cursor = (address+len)%64;
     char c;
     uint8_t new_value;
 
@@ -280,10 +284,10 @@ void hex_editor(uint16_t address) {
     while (1) {
         if (page != old_page) {
             if (modified_page) {
-                eeprom.write(address+old_page*64, buffer, sizeof(buffer));
+                eeprom.write(address+old_page*64, buffer, old_page==last_page ? last_cursor+1 : sizeof(buffer));
             }
             modified_page = false;
-            show_memory_page(address+page*64, buffer, sizeof(buffer));
+            show_memory_page(address+page*64, buffer, page==last_page ? last_cursor+1 : sizeof(buffer));
         }
         if (cursor != old_cursor) {
             // unhighlight current cursor
@@ -315,7 +319,7 @@ void hex_editor(uint16_t address) {
         case '2':
             // up
             if (cursor < 8) {
-                page--;
+                page = MOD(page-1, last_page+1);
                 cursor += 56;
             } else {
                 cursor -= 8;
@@ -324,7 +328,7 @@ void hex_editor(uint16_t address) {
         case '4':
             // left
             if (cursor == 0) {
-                page--;
+                page = MOD(page-1, last_page+1);
                 cursor = 63;
             } else {
                 cursor--;
@@ -332,8 +336,8 @@ void hex_editor(uint16_t address) {
             break;
         case '6':
             // right
-            if (cursor == 63) {
-                page++;
+            if (cursor == 63 || (page==last_page && cursor == last_cursor)) {
+                page = MOD(page+1, last_page+1);
                 cursor = 0;
             } else {
                 cursor++;
@@ -341,13 +345,21 @@ void hex_editor(uint16_t address) {
             break;
         case '8':
             // down
-            if (cursor/8 == 7) {
-                page++;
+            if (cursor/8 == 7 || (page==last_page && cursor == last_cursor)) {
+                page = MOD(page+1, last_page+1);
                 cursor = cursor % 8;
             } else {
-                cursor += 8;
+                if (page == last_page && cursor+8 > last_cursor) {
+                    cursor = cursor % 8;
+                } else {
+                    cursor += 8;
+                }
             }
             break;
+        }
+
+        if (page == last_page) {
+            cursor = MIN(cursor, last_cursor);
         }
     }
 }
