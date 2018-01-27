@@ -17,7 +17,6 @@ CPU::CPU(Adafruit_SSD1306 *display, Keypad *keypad, SpiRAM *memory, I2C_EEPROM *
 }
 
 void CPU::begin() {
-    uint8_t buffer[80] = {0};
     pc = 0x200;
     memset(V, 0, sizeof(V));
     I = 0;

@@ -78,6 +78,18 @@ static char to_hex(uint8_t x) {
     return 'X';
 }
 
+static void hex_string(uint8_t x, char* dst) {
+    dst[0] = to_hex(x>>4);
+    dst[1] = to_hex(x&0xF);
+}
+
+static void hex_string(uint16_t x, char* dst) {
+    dst[0] = to_hex(x>>12);
+    dst[1] = to_hex((x>>8) & 0xF);
+    dst[2] = to_hex((x>>4) & 0xF);
+    dst[3] = to_hex(x & 0xF);
+}
+
 static void print_hex(uint8_t x) {
     if (x<=0xF) {
         Serial.print("0");

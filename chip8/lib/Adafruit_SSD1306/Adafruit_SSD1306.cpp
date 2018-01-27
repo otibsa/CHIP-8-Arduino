@@ -276,7 +276,7 @@ void Adafruit_SSD1306::show(int16_t start_x, int16_t start_y, int16_t end_x, int
             for (uint8_t i=0; i<16 && (col+i)<=end_col; i++) {
                 // map the page and column to an offset in the buffer
                 seg = calc_segment(page, col+i);
-                // if (ascii_mode && seg) {
+                // if (ascii_mode && page == 0 && col+i<=10) {
                 //     Serial.print("page: ");
                 //     Serial.println(page);
                 //     Serial.print("col: ");
@@ -285,11 +285,24 @@ void Adafruit_SSD1306::show(int16_t start_x, int16_t start_y, int16_t end_x, int
                 //     Serial.println(seg);
                 // }
                 if (inverted) {
-                    if (ascii_mode && page == end_page && page < (SSD1306_LCDHEIGHT/8)-1) {
-                        // only invert the upper character, but not the lower one
-                        seg = seg ^ (0xFF - ((1<<end_page)-1));
+                    //Serial.print("page: ");
+                    //Serial.println(page);
+                    //Serial.print("end_page: ");
+                    //Serial.println(end_page);
+                    //Serial.print("seg: ");
+                    //Serial.println(seg);
+                    //Serial.print("col: ");
+                    //Serial.println(col+i);
+                    //Serial.println();
+                    //if (ascii_mode && page == end_page && page < (SSD1306_LCDHEIGHT/8)-1) {
+                    //    // only invert the upper character, but not the lower one
+                    //    seg = seg ^ (0xFF - ((1<<end_page)-1));
+                    if (ascii_mode && page == end_y) {
+                        seg ^= 0xFF >> page;
+                    } else if (ascii_mode && page == start_y-1) {
+                        seg ^= 0xFF << (8-start_y);
                     } else {
-                        seg = seg ^ 0xFF;
+                        seg ^= 0xFF;
                     }
                 }
                 WIRE_WRITE(seg);

@@ -44,10 +44,10 @@ void beep_n(int n);
 uint8_t hc2u8(char c);
 uint16_t input_program();
 void print_byte(uint8_t b);
-// void write_stream(uint16_t address, uint8_t *buffer, uint16_t len);
-// void write_byte(uint16_t address, uint8_t b);
-// void read_stream(uint16_t address, uint8_t *buffer, uint8_t len);
-// uint8_t read_byte(uint16_t address);
+void hex_editor(uint16_t address);
+void show_cursor(uint8_t cursor, bool highlight);
+void show_memory_page(uint16_t address, uint8_t *buffer, uint8_t len);
+void show_address(uint16_t address);
 
 void setup() {
     uint8_t b;
@@ -62,12 +62,16 @@ void setup() {
     oled.begin();
     //oled.rotate180();
 
-    oled.clear();
-    oled.show();
-    oled.set_mode(ASCII_MODE);
-    oled.drawString(0,0,"The quick brown fox jumps over the lazy dog");
-    oled.show();
-    oled.show(4,0, 8,0, true);
+    //oled.clear();
+    //oled.show();
+    //oled.set_mode(ASCII_MODE);
+    //oled.drawChar(10,0, 'A');
+    //oled.drawChar(10,1, 'B');
+    //oled.show(10,1, 10,1, false);
+    //delay(500);
+    //oled.show(10,0, 10,0, true);
+    //oled.show(10,0, 10,1, true);
+    hex_editor(0);
     return;
 
     button_now = digitalRead(BUTTON_PIN) == HIGH;
@@ -257,3 +261,123 @@ uint8_t hc2u8(char c) {
     return 0xFF;
 }
 
+
+void hex_editor(uint16_t address) {
+    // show and modify contents of the external EEPROM
+    uint8_t buffer[64];
+    uint8_t cursor = 0;
+    uint16_t page = 0;
+    uint8_t old_cursor = 1;
+    uint16_t old_page = 1;
+    bool modified_page = false;
+    char c;
+    uint8_t new_value;
+
+    oled.clear();
+    oled.show();
+    oled.set_mode(ASCII_MODE);
+
+    while (1) {
+        if (page != old_page) {
+            if (modified_page) {
+                eeprom.write(address+old_page*64, buffer, sizeof(buffer));
+            }
+            modified_page = false;
+            show_memory_page(address+page*64, buffer, sizeof(buffer));
+        }
+        if (cursor != old_cursor) {
+            // unhighlight current cursor
+            show_cursor(old_cursor, false);
+            show_address(address+page*64+cursor);
+            // highlight cursor
+            show_cursor(cursor, true);
+        }
+
+        c = keypad.waitForKey();
+        old_cursor = cursor;
+        old_page = page;
+        // move cursor
+        switch (c) {
+        case '5':
+            beep_n(1);
+            new_value = from_hex(keypad.waitForKey());
+            oled.drawChar(3*(cursor%8), cursor/8, to_hex(new_value&0xF));
+            oled.show(3*(cursor%8), cursor/8, 3*(cursor%8), cursor/8);
+            new_value <<= 4;
+            new_value |= from_hex(keypad.waitForKey());
+            oled.drawChar(1+3*(cursor%8), cursor/8, to_hex(new_value&0xF));
+            oled.show(1+3*(cursor%8), cursor/8, 1+3*(cursor%8), cursor/8);
+            buffer[cursor] = new_value;
+            modified_page = true;
+            show_cursor(cursor, true);
+            beep_n(1);
+            break;
+        case '2':
+            // up
+            if (cursor < 8) {
+                page--;
+                cursor += 56;
+            } else {
+                cursor -= 8;
+            }
+            break;
+        case '4':
+            // left
+            if (cursor == 0) {
+                page--;
+                cursor = 63;
+            } else {
+                cursor--;
+            }
+            break;
+        case '6':
+            // right
+            if (cursor == 63) {
+                page++;
+                cursor = 0;
+            } else {
+                cursor++;
+            }
+            break;
+        case '8':
+            // down
+            if (cursor/8 == 7) {
+                page++;
+                cursor = cursor % 8;
+            } else {
+                cursor += 8;
+            }
+            break;
+        }
+    }
+}
+
+void show_cursor(uint8_t cursor, bool highlight) {
+    oled.show(3*(cursor%8), cursor/8, 1+3*(cursor%8), cursor/8, highlight);
+}
+
+void show_address(uint16_t address) {
+    //oled.drawString(20,8, "    ");
+    char s[4];
+    hex_string(address, s);
+    oled.drawString(21,8, s, 4);
+    oled.show(21,8, 24,8, false);
+}
+
+void show_memory_page(uint16_t address, uint8_t *buffer, uint8_t len) {
+    uint8_t i;
+    uint8_t s;
+    // show current page
+    oled.clear();
+    // address = address/64;
+    // address = address % (0x8000-64);
+    memset(buffer, 0, len);
+    eeprom.read(address, buffer, len);
+    for (i=0; i<len; i++) {
+        oled.drawChar(3*(i%8), i/8, to_hex(buffer[i]>>4));
+        oled.drawChar(1+3*(i%8), i/8, to_hex(buffer[i]&0xF));
+
+        oled.drawChar(2+3*(i%8), i/8, ' ');
+    }
+    oled.show();
+}

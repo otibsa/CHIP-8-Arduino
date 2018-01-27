@@ -26,12 +26,14 @@ uint8_t I2C_EEPROM::read(uint16_t address) {
 
 uint8_t I2C_EEPROM::read(uint16_t address, uint8_t *dst, uint8_t len) {
     uint8_t i=0;
-    _write_address(address);
-    Wire.endTransmission();
+    while (i<len) {
+        _write_address(address+i);
+        Wire.endTransmission();
 
-    Wire.requestFrom(i2c_address, len);
-    while (Wire.available() && i<len) {
-        dst[i++] = Wire.read();
+        Wire.requestFrom(i2c_address, len-i);
+        while (Wire.available() && i<len) {
+            dst[i++] = Wire.read();
+        }
     }
     return i;
 }
@@ -52,6 +54,7 @@ uint8_t I2C_EEPROM::write(uint16_t address, uint8_t *src, uint8_t len) {
     Wire.endTransmission();
 
     delay(4);
+    return len;
 }
 
 uint8_t I2C_EEPROM::set(uint16_t address, uint8_t b, uint8_t len) {
