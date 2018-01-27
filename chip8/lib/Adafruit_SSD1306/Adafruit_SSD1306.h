@@ -111,6 +111,7 @@ All text above, and the splash screen must be included in any redistribution
 #define ASCII_WIDTH (SSD1306_LCDWIDTH/(GLYPH_WIDTH+1))
 #define ASCII_HEIGHT (SSD1306_LCDHEIGHT/(GLYPH_HEIGHT+1))
 #define ASCII_MODE true
+#define RAW_MODE false
 
 #define SSD1306_SETCONTRAST 0x81
 #define SSD1306_DISPLAYALLON_RESUME 0xA4

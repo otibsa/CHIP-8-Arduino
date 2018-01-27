@@ -38,21 +38,26 @@ I2C_EEPROM eeprom(EEPROM_ADDRESS);
 void tick_callback();
 CPU cpu(&oled, &keypad, &SpiRam, &eeprom, 0/*tick_callback*/, BUZZER_PIN, 1200);
 
+typedef struct {
+    uint16_t size;
+    char name[8];
+    uint16_t address;
+} CHIP8_rom;
+
 bool button_before = false;
 bool button_now = false;
 uint8_t cursor;
 
 void beep_n(int n);
-uint8_t hc2u8(char c);
 uint16_t input_program();
-void print_byte(uint8_t b);
-void hex_editor(uint16_t address, uint16_t len);
-void show_cursor(uint8_t cursor, bool highlight);
-void show_memory_page(uint16_t address, uint8_t *buffer, uint8_t len);
+void hex_editor(uint16_t address, uint16_t len, uint16_t address_offset);
+void show_cursor(uint8_t cursor, bool highlight, uint8_t x_step, uint8_t x_count);
+void show_memory_page(uint16_t address, uint8_t *buffer, uint8_t len, uint8_t x_step, uint8_t x_count);
 void show_address(uint16_t address);
+void rom_menu();
+void show_rom_names(uint16_t address, CHIP8_rom *roms, uint8_t len, uint8_t x_step, uint8_t x_count);
 
 void setup() {
-    uint8_t b;
     Serial.begin(9600);
     Wire.begin();
     Wire.setClock(400000);
@@ -64,50 +69,22 @@ void setup() {
     oled.begin();
     //oled.rotate180();
 
-    //oled.clear();
-    //oled.show();
-    //oled.set_mode(ASCII_MODE);
+    oled.clear();
+    oled.show();
+    oled.set_mode(ASCII_MODE);
     //oled.drawChar(10,0, 'A');
     //oled.drawChar(10,1, 'B');
     //oled.show(10,1, 10,1, false);
     //delay(500);
     //oled.show(10,0, 10,0, true);
     //oled.show(10,0, 10,1, true);
-    hex_editor(0, 50);
-    return;
-
-    button_now = digitalRead(BUTTON_PIN) == HIGH;
-    // if button is pressed on startup, read a program into the eeprom
-    if (button_now) {
-        beep_n(3);
+    while (1) {
+        //hex_editor(0, 1);
+        rom_menu();
         oled.clear();
-
-        Serial.println("First 256 bytes of EEPROM:");
-        for (uint16_t i=0; i<256; i++) {
-            b = eeprom.read(i);
-            print_byte(b);
-            print_hex(b);
-            Serial.print(" ");
-        }
+        oled.drawString(0,0,String("RESTART"));
         oled.show();
-        Serial.println();
-        uint16_t len = input_program();
-        Serial.println("Written into EEPROM:");
-        for (uint16_t i=0; i<len; i++) {
-            b = eeprom.read(i);
-            print_hex(b);
-            Serial.print(" ");
-        }
-        Serial.println("\n");
-        beep_n(3);
-    } else {
-        // load MAZE
-        cpu.begin();
-        cpu.load(0, 34);
-        beep_n(2);
-        cpu.run();
     }
-    //oled.show();
 }
 
 void tick_callback() {
@@ -123,121 +100,7 @@ void tick_callback() {
     }
 }
 
-void print_byte(uint8_t b) {
-    for (uint8_t i=0; i<8; i++) {
-        oled.drawPixel((i+8*cursor)%64, cursor/8, (b&(0x80>>i)) ? WHITE : BLACK);
-    }
-    cursor++;
-}
-
-uint16_t input_program() {
-    uint8_t b;
-    uint16_t i = 0;
-    uint8_t buffer[8];
-    bool save = false;
-    cursor = 0;
-
-    Serial.println("waiting for user input");
-    while (1) {
-        // read from keypad
-        while (1) {
-            button_before = button_now;
-            button_now = digitalRead(BUTTON_PIN) == HIGH;
-            b = (uint8_t)keypad.getKey();
-            if (b) {
-                b = hc2u8(b);
-                break;
-            }
-            if (!button_before && button_now) {
-                // rising edge
-                save = true;
-                break;
-            }
-            delay(10);
-        }
-        if (save) {
-            break;
-        }
-        beep_n(1);
-        Serial.print(b, HEX);
-        b <<= 4;
-        b |= hc2u8(keypad.waitForKey());
-        Serial.print(b&0xF, HEX);
-        Serial.print(" ");
-        beep_n(1);
-
-        buffer[i%sizeof(buffer)] = b;
-        print_byte(b);
-        oled.show();
-        i++;
-
-        if (i%sizeof(buffer) == 0) {
-            Serial.println("\n[Saving]");
-            eeprom.write(i-sizeof(buffer), buffer, sizeof(buffer));
-        }
-    }
-    eeprom.write(i-(i%sizeof(buffer)), buffer, i%sizeof(buffer));
-    Serial.print("Saved ");
-    Serial.print(i);
-    Serial.println(" Bytes to ROM");
-    return i;
-}
-
 void loop() {
-
-    return;
-
-    int i;
-    char c;
-    uint8_t buffer[16];
-    uint8_t x;
-    analogWrite(BUZZER_PIN, 127);
-    delay(1000);
-    analogWrite(BUZZER_PIN, 0);
-
-    for (i=0; i<16; i++) {
-        analogWrite(BUZZER_PIN, 127);
-        delay(20);
-        analogWrite(BUZZER_PIN, 0);
-        c = keypad.waitForKey();
-        x = hc2u8(c);
-        if (x == 0xFF) {
-            x = 0;
-        }
-        buffer[i] = x<<4;
-
-        c = keypad.waitForKey();
-        x = hc2u8(c);
-        if (x == 0xFF) {
-            x = 0;
-        }
-        buffer[i] |= x;
-        Serial.print(i);
-        Serial.print(": ");
-        Serial.print(buffer[i], HEX);
-        Serial.println();
-    }
-
-    Serial.print("buffer: ");
-    for (i=0; i<16; i++) {
-        Serial.print(buffer[i], HEX);
-    }
-    Serial.println();
-    SpiRam.write_stream(0, (char*)buffer, 16);
-    delay(100);
-
-    buffer[0] = 0;
-    SpiRam.read_stream(0, (char*)buffer, 16);
-    x = 0;
-    for (i=0; i<16; i++) {
-        x ^= buffer[i];
-    }
-    Serial.print("Hash: ");
-    Serial.println(x);
-
-    beep_n(x);
-
-    delay(5000);
 }
 
 void beep_n(int n) {
@@ -263,19 +126,164 @@ uint8_t hc2u8(char c) {
     return 0xFF;
 }
 
+void rom_menu() {
+    // parse EEPROM for CHIP8 roms
+    CHIP8_rom roms[16] = {0};
+    uint8_t rom_count;
+    uint16_t rom_address;
+    uint8_t cursor = 0;
+    uint8_t page = 0;
+    uint8_t old_cursor = 1;
+    uint8_t old_page = 1;
+    uint8_t last_page;
+    uint8_t last_cursor;
+    uint8_t menu_rows = 8;
+    uint8_t menu_cols = 2;
+    uint8_t menu_sep = 12;
+    char c;
 
-void hex_editor(uint16_t address, uint16_t len) {
+    rom_count = eeprom.read(0);
+    Serial.print("There are ");
+    Serial.print(rom_count);
+    Serial.println(" CHIP8 roms installed.");
+    last_page = (rom_count-1)/16;
+    last_cursor = (rom_count-1)%16;
+    rom_address = 1;  // start searching after rom_count
+    oled.clear();
+    oled.show();
+    oled.set_mode(ASCII_MODE);
+    while (1) {
+        Serial.print("page: ");
+        Serial.println(page);
+        Serial.print("cursor: ");
+        Serial.println(cursor);
+        if (page != old_page) {
+            // show names of roms and wait for user input
+            show_rom_names(rom_address, roms, page==last_page ? last_cursor+1 : menu_rows*menu_cols , menu_sep, menu_cols);
+        }
+        if (cursor != old_cursor) {
+            show_cursor(old_cursor, false, menu_sep, menu_cols);
+            show_cursor(cursor, true, menu_sep, menu_cols);
+        }
+        c = keypad.waitForKey();
+        old_page = page;
+        old_cursor = cursor;
+        switch (c) {
+        case '0':
+            // edit
+            oled.clear();
+            oled.show();
+            beep_n(2);
+            Serial.print("editing ROM with size ");
+            Serial.println(roms[cursor].size);
+            hex_editor(roms[cursor].address, roms[cursor].size, 0x200);
+            break;
+        case 'F':
+            // exit rom_menu
+            return;
+        case '5':
+            // start rom
+            oled.set_mode(RAW_MODE);
+            oled.clear();
+            oled.show();
+            cpu.begin();
+            cpu.load(roms[cursor].address, roms[cursor].size);
+            beep_n(3);
+            cpu.run();
+            oled.clear();
+            oled.set_mode(ASCII_MODE);
+            break;
+        case '2':
+            // up
+            if (cursor < menu_cols) {
+                page = MOD(page-1, last_page+1);
+                cursor += menu_cols*(menu_rows-1);
+            } else {
+                cursor -= menu_cols;
+            }
+            break;
+        case '4':
+            // left
+            if (cursor == 0) {
+                page = MOD(page-1, last_page+1);
+                cursor = menu_cols*menu_rows - 1;
+            } else {
+                cursor--;
+            }
+            break;
+        case '6':
+            // right
+            if (cursor == menu_cols*menu_rows -1 || (page==last_page && cursor == last_cursor)) {
+                page = MOD(page+1, last_page+1);
+                cursor = 0;
+            } else {
+                cursor++;
+            }
+            break;
+        case '8':
+            // down
+            if (cursor/menu_cols == menu_rows-1 || (page==last_page && cursor == last_cursor)) {
+                page = MOD(page+1, last_page+1);
+                cursor = cursor % menu_cols;
+            } else {
+                if (page == last_page && cursor+menu_cols > last_cursor) {
+                    cursor = cursor % menu_cols;
+                } else {
+                    cursor += menu_cols;
+                }
+            }
+            break;
+        }
+        if (page == last_page) {
+            cursor = MIN(cursor, last_cursor);
+        }
+    }
+
+    // 5 -> start rom
+    // 0 -> edit rom, start hex_editor at relevant address and len
+    // F -> restart arduino?
+}
+
+void show_rom_names(uint16_t address, CHIP8_rom *roms, uint8_t len, uint8_t x_step, uint8_t x_count) {
+    uint8_t cursor;
+    char name[8];
+    for (cursor=0; cursor<len; cursor++) {
+        address += eeprom.read(address, (uint8_t*)&(roms[cursor].size), 2);
+        address += eeprom.read(address, (uint8_t*)name, 8);
+        roms[cursor].address = address;
+        address += roms[cursor].size;
+        Serial.print("Found ROM \"");
+        Serial.print(String(name));
+        Serial.print("\" (");
+        Serial.print(roms[cursor].size);
+        Serial.print(" B), begins at 0x");
+        print_hex(roms[cursor].address);
+        Serial.println();
+
+        oled.drawString(x_step*(cursor%x_count), cursor/x_count, String(name));
+    }
+    oled.show();
+}
+
+void hex_editor(uint16_t address, uint16_t len, uint16_t address_offset) {
     // show and modify contents of the external EEPROM
+    if (address + len > 0x7FFF) {
+        return;
+    }
+    uint16_t start_address = address;
     uint8_t buffer[64];
     uint8_t cursor = 0;
     uint16_t page = 0;
     uint8_t old_cursor = 1;
     uint16_t old_page = 1;
-    bool modified_page = false;
-    uint16_t last_page = (address+len)/64;
-    uint8_t last_cursor = (address+len)%64;
+    uint16_t last_page = (len-1)/64;
+    uint8_t last_cursor = (len-1)%64;
     char c;
+    bool modified_page = false;
     uint8_t new_value;
+    uint8_t menu_rows = 8;
+    uint8_t menu_cols = 8;
+    uint8_t menu_sep = 3;
 
     oled.clear();
     oled.show();
@@ -287,14 +295,14 @@ void hex_editor(uint16_t address, uint16_t len) {
                 eeprom.write(address+old_page*64, buffer, old_page==last_page ? last_cursor+1 : sizeof(buffer));
             }
             modified_page = false;
-            show_memory_page(address+page*64, buffer, page==last_page ? last_cursor+1 : sizeof(buffer));
+            show_memory_page(address+page*64, buffer, page==last_page ? last_cursor+1 : sizeof(buffer), menu_sep, menu_cols);
         }
         if (cursor != old_cursor) {
             // unhighlight current cursor
-            show_cursor(old_cursor, false);
-            show_address(address+page*64+cursor);
+            show_cursor(old_cursor, false, menu_sep, menu_cols);
+            show_address(address_offset-start_address+address+page*64+cursor);
             // highlight cursor
-            show_cursor(cursor, true);
+            show_cursor(cursor, true, menu_sep, menu_cols);
         }
 
         c = keypad.waitForKey();
@@ -302,48 +310,51 @@ void hex_editor(uint16_t address, uint16_t len) {
         old_page = page;
         // move cursor
         switch (c) {
-        case '5':
-            // edit
-            beep_n(1);
-            new_value = from_hex(keypad.waitForKey());
-            oled.drawChar(3*(cursor%8), cursor/8, to_hex(new_value&0xF));
-            oled.show(3*(cursor%8), cursor/8, 3*(cursor%8), cursor/8);
-            new_value <<= 4;
-            new_value |= from_hex(keypad.waitForKey());
-            oled.drawChar(1+3*(cursor%8), cursor/8, to_hex(new_value&0xF));
-            oled.show(1+3*(cursor%8), cursor/8, 1+3*(cursor%8), cursor/8);
-            buffer[cursor] = new_value;
-            modified_page = true;
-            show_cursor(cursor, true);
-            beep_n(1);
-            break;
         case '0':
             // save
             eeprom.write(address+page*64, buffer, page==last_page ? last_cursor+1 : sizeof(buffer));
             beep_n(3);
             modified_page = false;
             break;
+        case 'F':
+            // exit hex_editor without saving
+            return;
         case '2':
             // up
-            if (cursor < 8) {
+            if (cursor < menu_cols) {
                 page = MOD(page-1, last_page+1);
-                cursor += 56;
+                cursor += menu_cols*(menu_rows-1);
             } else {
-                cursor -= 8;
+                cursor -= menu_cols;
             }
             break;
         case '4':
             // left
             if (cursor == 0) {
                 page = MOD(page-1, last_page+1);
-                cursor = 63;
+                cursor = menu_cols*menu_rows - 1;
             } else {
                 cursor--;
             }
             break;
+        case '5':
+            // edit
+            beep_n(1);
+            new_value = from_hex(keypad.waitForKey());
+            oled.drawChar(menu_sep*(cursor%menu_cols), cursor/menu_cols, to_hex(new_value&0xF));
+            oled.show(menu_sep*(cursor%menu_cols), cursor/menu_cols, menu_sep*(cursor%menu_cols), cursor/menu_cols);
+            new_value <<= 4;
+            new_value |= from_hex(keypad.waitForKey());
+            oled.drawChar(1+menu_sep*(cursor%menu_cols), cursor/menu_cols, to_hex(new_value&0xF));
+            oled.show(1+menu_sep*(cursor%menu_cols), cursor/menu_cols, 1+menu_sep*(cursor%menu_cols), cursor/menu_cols);
+            buffer[cursor] = new_value;
+            modified_page = true;
+            show_cursor(cursor, true, menu_sep, menu_cols);
+            beep_n(1);
+            break;
         case '6':
             // right
-            if (cursor == 63 || (page==last_page && cursor == last_cursor)) {
+            if (cursor == menu_cols*menu_rows -1 || (page==last_page && cursor == last_cursor)) {
                 page = MOD(page+1, last_page+1);
                 cursor = 0;
             } else {
@@ -352,14 +363,14 @@ void hex_editor(uint16_t address, uint16_t len) {
             break;
         case '8':
             // down
-            if (cursor/8 == 7 || (page==last_page && cursor == last_cursor)) {
+            if (cursor/menu_cols == menu_rows-1 || (page==last_page && cursor == last_cursor)) {
                 page = MOD(page+1, last_page+1);
-                cursor = cursor % 8;
+                cursor = cursor % menu_cols;
             } else {
-                if (page == last_page && cursor+8 > last_cursor) {
-                    cursor = cursor % 8;
+                if (page == last_page && cursor+menu_cols > last_cursor) {
+                    cursor = cursor % menu_cols;
                 } else {
-                    cursor += 8;
+                    cursor += menu_cols;
                 }
             }
             break;
@@ -371,8 +382,8 @@ void hex_editor(uint16_t address, uint16_t len) {
     }
 }
 
-void show_cursor(uint8_t cursor, bool highlight) {
-    oled.show(3*(cursor%8), cursor/8, 1+3*(cursor%8), cursor/8, highlight);
+void show_cursor(uint8_t cursor, bool highlight, uint8_t x_step, uint8_t x_count) {
+    oled.show(x_step*(cursor%x_count), cursor/x_count, (x_step-1-1)+x_step*(cursor%x_count), cursor/x_count, highlight);
 }
 
 void show_address(uint16_t address) {
@@ -383,20 +394,19 @@ void show_address(uint16_t address) {
     oled.show(21,8, 24,8, false);
 }
 
-void show_memory_page(uint16_t address, uint8_t *buffer, uint8_t len) {
-    uint8_t i;
-    uint8_t s;
+void show_memory_page(uint16_t address, uint8_t *buffer, uint8_t len, uint8_t x_step, uint8_t x_count) {
+    uint8_t cursor;
     // show current page
     oled.clear();
     // address = address/64;
     // address = address % (0x8000-64);
     memset(buffer, 0, len);
     eeprom.read(address, buffer, len);
-    for (i=0; i<len; i++) {
-        oled.drawChar(3*(i%8), i/8, to_hex(buffer[i]>>4));
-        oled.drawChar(1+3*(i%8), i/8, to_hex(buffer[i]&0xF));
+    for (cursor=0; cursor<len; cursor++) {
+        oled.drawChar(x_step*(cursor%x_count), cursor/x_count, to_hex(buffer[cursor]>>4));
+        oled.drawChar(1+x_step*(cursor%x_count), cursor/x_count, to_hex(buffer[cursor]&0xF));
 
-        oled.drawChar(2+3*(i%8), i/8, ' ');
+        oled.drawChar(2+x_step*(cursor%x_count), cursor/x_count, ' ');
     }
     oled.show();
 }
