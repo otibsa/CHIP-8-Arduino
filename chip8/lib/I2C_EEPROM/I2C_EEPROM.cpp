@@ -49,22 +49,37 @@ uint8_t I2C_EEPROM::write(uint16_t address, uint8_t b) {
 }
 
 uint8_t I2C_EEPROM::write(uint16_t address, uint8_t *src, uint8_t len) {
-    _write_address(address);
-    len = Wire.write(src, len);
-    Wire.endTransmission();
+    uint8_t written = 0;
+    uint8_t i;
+    while (written < len) {
+        _write_address(address+written);
+        i = Wire.write(src+written, MIN(len-written, 30));
+        written += i;
+        Wire.endTransmission();
 
-    delay(4);
-    return len;
+        delay(4);
+        if (i==0) {
+            break;
+        }
+    }
+    return written;
 }
 
 uint8_t I2C_EEPROM::set(uint16_t address, uint8_t b, uint8_t len) {
     uint8_t written = 0;
     uint8_t i;
-    uint8_t buffer[64];
-    memset(buffer, b, 64);
+    uint8_t buffer[30];
+    memset(buffer, b, 30);
 
-    for (i=0; i<len; i+=64) {
-        written += write(address+i, buffer, MIN(len-i, 64));
+    while (written < len) {
+        _write_address(address+written);
+        written += Wire.write(buffer, MIN(len-written, 30));
+        Wire.endTransmission();
+
+        delay(4);
+        if (i==0) {
+            break;
+        }
     }
     return written;
 }
