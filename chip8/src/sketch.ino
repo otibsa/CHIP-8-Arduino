@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
 #include <I2C_EEPROM.h>
+#include <Menu.h>
 
 #include <CHIP8.h>
 
@@ -38,11 +39,11 @@ I2C_EEPROM eeprom(EEPROM_ADDRESS);
 void tick_callback();
 CPU cpu(&oled, &keypad, &SpiRam, &eeprom, 0/*tick_callback*/, BUZZER_PIN, 1200);
 
-typedef struct {
-    uint16_t size;
-    char name[8];
-    uint16_t address;
-} CHIP8_rom;
+// typedef struct {
+//     uint16_t size;
+//     char name[8];
+//     uint16_t address;
+// } CHIP8_rom;
 
 bool button_before = false;
 bool button_now = false;
@@ -68,6 +69,11 @@ void setup() {
     randomSeed(analogRead(OLED_RESET)); // not connected
     oled.begin();
     //oled.rotate180();
+
+    Serial.println("restarted");
+    ROM_Menu rM(2,8);
+    rM.begin();
+    return;
 
     oled.clear();
     oled.show();
