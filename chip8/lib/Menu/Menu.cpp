@@ -35,6 +35,8 @@ void Menu::begin(uint16_t eeprom_offset, uint16_t item_count) {
     oled->show();
     oled->set_mode(ASCII_MODE);
 
+    show_info();
+
     while (1) {
         Serial.println();
         Serial.print("page: ");
@@ -221,6 +223,17 @@ void ROM_Menu::show_page() {
     oled->show();
 }
 
+void ROM_Menu::show_info() {
+    oled->clear();
+    oled->drawString(0,0, String(" INSTALLED ROMS "));
+    oled->drawString(0,2, String("5  START ROM"));
+    oled->drawString(0,4, String("0  EDIT ROM"));
+    oled->drawString(0,6, String("F  NEW ROM"));
+    oled->drawString(25-13, 8, String("PRESS ANY KEY"));
+    oled->show();
+    oled->show(0,0, 24,0, true);
+    keypad->waitForKey();
+}
 
 
 ////////////////////////////////////////////////////////////////////
@@ -292,4 +305,16 @@ void Hex_Editor::show_page() {
         oled->drawChar(2+x_step*(i%cols), i/cols, ' ');
     }
     oled->show();
+}
+
+void Hex_Editor::show_info() {
+    oled->clear();
+    oled->drawString(0,0, String(" HEX EDITOR "));
+    oled->drawString(0,2, String("5  EDIT BYTE"));
+    oled->drawString(0,4, String("0  SAVE PAGE"));
+    oled->drawString(0,6, String("F  EXIT"));
+    oled->drawString(25-13, 8, String("PRESS ANY KEY"));
+    oled->show();
+    oled->show(0,0, 24,0, true);
+    keypad->waitForKey();
 }

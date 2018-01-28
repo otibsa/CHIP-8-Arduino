@@ -29,6 +29,7 @@ class Menu {
         virtual void on_key_F() = 0;
         virtual void on_cursor_move() = 0;
         virtual void show_page() = 0;
+        virtual void show_info() = 0;
         void beep(uint8_t n);
         void move_cursor(cursor_move m);
         void update_cursor();
@@ -65,6 +66,7 @@ class Hex_Editor : public Menu {
         void on_key_F();
         void on_cursor_move();
         void show_page();
+        void show_info();
 };
 
 class ROM_Menu : public Menu {
@@ -77,6 +79,7 @@ class ROM_Menu : public Menu {
         void on_key_F();
         void on_cursor_move();
         void show_page();
+        void show_info();
 
         CHIP8_rom *roms;
         Hex_Editor *hex_editor;
