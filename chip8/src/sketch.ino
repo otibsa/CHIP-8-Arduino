@@ -44,6 +44,7 @@ bool button_now = false;
 uint8_t cursor;
 
 void beep_n(int n);
+void show_roms();
 
 void setup() {
     Serial.begin(9600);
@@ -61,10 +62,49 @@ void setup() {
     Hex_Editor hex_editor(8, 8, &oled, &keypad, &eeprom, &cpu, BUZZER_PIN);
     ROM_Menu rom_menu(2, 8, &oled, &keypad, &eeprom, &cpu, BUZZER_PIN, &hex_editor);
 
+    show_roms();
     uint8_t rom_count;
+    // Serial.println(F("128 Bytes: "));
+    // for (uint16_t i=0; i<128; i++) {
+    //     if (i%16 == 0) {
+    //         Serial.println();
+    //     }
+    //     print_hex(eeprom.read(i));
+    //     Serial.print(", ");
+    // }
     while (1) {
-        rom_count = eeprom.read(1);
+        rom_count = eeprom.read(0);
+        Serial.print(F("ROM count is "));
+        Serial.println(rom_count);
         rom_menu.begin(1, rom_count);
+    }
+}
+
+void show_roms() {
+    uint8_t i;
+    uint16_t address = 1;
+    uint8_t rom_count = eeprom.read(0);
+    uint8_t buffer[64];
+    uint16_t size;
+    uint16_t j;
+    char name[9] = {0};
+
+    for (i=0; i<rom_count; i++) {
+        Serial.println();
+        Serial.print(F("ROM "));
+        Serial.print(i);
+        Serial.println(F(":"));
+        Serial.print(F("Offset: 0x"));
+        Serial.println(address, HEX);
+
+        address += eeprom.read(address, (uint8_t*)&size, 2);
+        address += eeprom.read(address, (uint8_t*)name, 8);
+        Serial.print(F("Name: "));
+        Serial.println(name);
+        Serial.print(F("Size: "));
+        Serial.println(size);
+        // print ROM content?
+        address += size;
     }
 }
 

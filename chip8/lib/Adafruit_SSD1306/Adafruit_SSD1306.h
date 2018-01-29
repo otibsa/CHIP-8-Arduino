@@ -178,7 +178,9 @@ class Adafruit_SSD1306 { // : public Adafruit_GFX {
   bool drawSprite(uint8_t x, uint8_t y, uint8_t *sprite, uint8_t n, bool _show=false);
   void drawChar(uint8_t x, uint8_t y, char c);
   void drawString(uint8_t x, uint8_t y, char *s, uint8_t len);
+  void drawString(uint8_t x, uint8_t y, char *s);
   void drawString(uint8_t x, uint8_t y, String s);
+  void drawStringLine(uint8_t y, char *s);
 
  private:
   int8_t _i2caddr, _vccstate, sid, sclk, dc, rst, cs;

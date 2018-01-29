@@ -13,11 +13,11 @@ Menu::Menu(uint8_t cols, uint8_t rows, Adafruit_SSD1306 *oled, Keypad *keypad, I
 }
 
 void Menu::begin(uint16_t eeprom_offset, uint16_t item_count) {
-    Serial.print("Menu::begin(0x");
+    Serial.print(F("Menu::begin(0x"));
     Serial.print(eeprom_offset, HEX);
-    Serial.print(", ");
+    Serial.print(F(", "));
     Serial.print(item_count);
-    Serial.println(")");
+    Serial.println(F(")"));
     char c;
 
     this->eeprom_offset = eeprom_offset;
@@ -36,12 +36,15 @@ void Menu::begin(uint16_t eeprom_offset, uint16_t item_count) {
     oled->set_mode(ASCII_MODE);
 
     show_info();
+    if (item_count == 0) {
+        empty_menu();
+    }
 
-    while (1) {
+    while (!stop) {
         Serial.println();
-        Serial.print("page: ");
+        Serial.print(F("page: "));
         Serial.println(page);
-        Serial.print("cursor: ");
+        Serial.print(F("cursor: "));
         Serial.println(cursor);
         if (page != old_page) {
             show_page();
@@ -79,18 +82,13 @@ void Menu::begin(uint16_t eeprom_offset, uint16_t item_count) {
         if (page == last_page) {
             cursor = MIN(cursor, last_cursor);
         }
-        if (stop) {
-            break;
-        }
     }
-    Serial.println("------- finished Menu::begin() --------");
+    Serial.println(F("------- finished Menu::begin() --------"));
 }
 
 void Menu::move_cursor(cursor_move m) {
-    Serial.print("Menu::move_cursor(");
     switch (m) {
     case c_UP:
-        Serial.println("c_UP)");
         if (cursor < cols) {
             page = MOD(page-1, last_page+1);
             cursor += cols*(rows-1);
@@ -99,7 +97,6 @@ void Menu::move_cursor(cursor_move m) {
         }
         break;
     case c_RIGHT:
-        Serial.println("c_RIGHT)");
         if (cursor == cols*rows -1 || (page==last_page && cursor == last_cursor)) {
             page = MOD(page+1, last_page+1);
             cursor = 0;
@@ -108,7 +105,6 @@ void Menu::move_cursor(cursor_move m) {
         }
         break;
     case c_DOWN:
-        Serial.println("c_DOWN)");
         if (cursor/cols == rows-1 || (page==last_page && cursor == last_cursor)) {
             page = MOD(page+1, last_page+1);
             cursor = cursor % cols;
@@ -121,7 +117,6 @@ void Menu::move_cursor(cursor_move m) {
         }
         break;
     case c_LEFT:
-        Serial.println("c_LEFT)");
         if (cursor == 0) {
             page = MOD(page-1, last_page+1);
             cursor = cols*rows - 1;
@@ -160,7 +155,6 @@ ROM_Menu::ROM_Menu(uint8_t cols, uint8_t rows, Adafruit_SSD1306 *oled, Keypad *k
 }
 
 void ROM_Menu::on_key_5() {
-    Serial.println("ROM_Menu::on_key_5()");
     // start ROM
     oled->set_mode(RAW_MODE);
     oled->clear();
@@ -175,7 +169,6 @@ void ROM_Menu::on_key_5() {
 }
 
 void ROM_Menu::on_key_0() {
-    Serial.println("ROM_Menu::on_key_0()");
     // edit ROM
     oled->clear();
     oled->show();
@@ -187,9 +180,147 @@ void ROM_Menu::on_key_0() {
 }
 
 void ROM_Menu::on_key_F() {
-    Serial.println("ROM_Menu::on_key_F()");
     // upload/input new ROM
+    new_rom();
+}
+
+void ROM_Menu::new_rom() {
+    uint16_t new_rom_start = eeprom_offset;
+    uint16_t address;
+    uint8_t i;
+    uint16_t size = 0;
+    char name[9] = {0};
+    char c;
+
+    for (i=0; i<item_count; i++) {
+        new_rom_start += eeprom->read(new_rom_start, (uint8_t*)&size, 2);
+        new_rom_start += eeprom->read(new_rom_start, (uint8_t*)name, 8);
+        new_rom_start += size;
+    }
+    // skipped all saved roms
+    address = new_rom_start + 2 + 8;
     beep(5);
+    oled->clear();
+    oled->drawStringLine(0, "    New CHIP8 ROM        ");
+    oled->drawStringLine(2, "1 Input over Serial      ");
+    oled->drawStringLine(4, "2 Input over Keypad      ");
+    oled->show();
+    oled->show(0,0, 24,0, true);
+    delay(100);
+    while (1) {
+        c = keypad->waitForKey();
+        if (c == '1' || c == '2') {
+            break;
+        }
+        delay(500);
+    }
+    oled->clear();
+    oled->show();
+    if (c == '1') {
+        beep(1);
+        uint8_t buffer[64];
+        uint8_t byte_count;
+        bool stopped = false;
+        String s;
+        // input over Serial
+        s = String("SEND ROM");
+        Serial.println(s);
+        oled->drawStringLine(0, s.c_str());
+        oled->show();
+        size = 0;
+        while(!stopped) {
+            byte_count = 0;
+            while (byte_count < 64) {
+                // receive single bytes until page full or interrupt
+
+                c = keypad->getKey();
+                if (c == '0') {
+                    stopped = true;
+                    break;
+                }
+                if (Serial.available()) {
+                    buffer[byte_count++] = Serial.read();
+                }
+            }
+            if (byte_count) {
+                // ACK
+                eeprom->write(address, buffer, byte_count);
+                beep(1);
+                address += byte_count;
+                size += byte_count;
+            }
+        }
+        beep(3);
+        while(Serial.available()) {
+            // flush input
+            Serial.read();
+        }
+        s = String("NAME?");
+        Serial.println(s);
+        oled->drawStringLine(1, s.c_str());
+        oled->show();
+        i=0;
+        while (i<8) {
+            if (Serial.available()) {
+                c = Serial.read();
+                if (c == '\n' || c == '\r' || c == ' ') {
+                    for (uint8_t j=i; j<8; j++) {
+                        name[j] = 0;
+                    }
+                    i=8;
+                } else {
+                    name[i++] = c;
+                }
+            }
+        }
+        size += 32;
+        size = size - (size%64) + 64;
+        oled->clear();
+        s = String("Write ");
+        s += String(size);
+        s += " B?";
+        Serial.println(s);
+        oled->drawStringLine(0, s.c_str());
+        s = String("AT 0x");
+        s += String(new_rom_start+2+8, HEX);
+        Serial.println(s);
+        oled->drawStringLine(2, s.c_str());
+        oled->show();
+        while (1) {
+            c = keypad->waitForKey();
+            if (c == '5') {
+                eeprom->write(new_rom_start, (uint8_t*)&size, 2);
+                eeprom->write(new_rom_start+2, (uint8_t*)name, 8);
+                item_count += 1;
+                Serial.print(F("Incrementing rom_count to "));
+                Serial.println(item_count);
+                eeprom->write(0, item_count);
+                delay(10);
+                if (eeprom->read(0) != item_count) {
+                    Serial.println(F(" BAD"));
+                }
+                break;
+            } else if (c == 'F') {
+                break;
+            }
+        }
+    } else {
+        beep(2);
+        // input over keypad, i.e. hex_editor
+    }
+
+    page = 0;
+    cursor = 0;
+    old_page = 1;
+    old_cursor = 1;
+    last_page = (item_count-1)/(cols*rows);
+    last_cursor = (item_count-1)%(cols*rows);
+
+    oled->clear();
+    oled->show();
+    show_page();
+    // round up size and store at new_rom_start
+    // ask for name
 }
 
 void ROM_Menu::on_cursor_move() {
@@ -200,9 +331,11 @@ void ROM_Menu::show_page() {
     uint8_t i;
     uint8_t start_index = page*cols*rows;
     uint8_t count = page==last_page ? last_cursor+1 : cols*rows;
-    char name[8];
-    uint8_t address = eeprom_offset;
+    char name[9] = {0};
+    uint16_t address = eeprom_offset;
     uint16_t size;
+    
+    memset((uint8_t*)roms, 0, sizeof(CHIP8_rom)*cols*rows);
 
     // skip pages of ROMS
     for (i=0; i<start_index; i++) {
@@ -218,21 +351,35 @@ void ROM_Menu::show_page() {
         roms[i].address = address;
         address += roms[i].size;
 
-        oled->drawString(x_step*(i%cols), i/cols, String(name));
+        oled->drawString(x_step*(i%cols), i/cols, name);
     }
     oled->show();
 }
 
 void ROM_Menu::show_info() {
     oled->clear();
-    oled->drawString(0,0, String(" INSTALLED ROMS "));
-    oled->drawString(0,2, String("5  START ROM"));
-    oled->drawString(0,4, String("0  EDIT ROM"));
-    oled->drawString(0,6, String("F  NEW ROM"));
-    oled->drawString(25-13, 8, String("PRESS ANY KEY"));
+    oled->drawStringLine(0, " INSTALLED ROMS");
+    oled->drawStringLine(2, "5  START ROM");
+    oled->drawStringLine(4, "0  EDIT ROM");
+    oled->drawStringLine(6, "F  NEW ROM");
+    oled->drawStringLine(8, "            PRESS ANY KEY");
     oled->show();
     oled->show(0,0, 24,0, true);
     keypad->waitForKey();
+}
+
+void ROM_Menu::empty_menu() {
+    char c;
+    oled->clear();
+    oled->drawStringLine(0, "     NO ROMS");
+    oled->drawStringLine(2, "F  NEW ROM");
+    oled->show();
+    oled->show(0,0, 24,0, true);
+
+    c = keypad->waitForKey();
+    if (c == 'F') {
+        new_rom();
+    }
 }
 
 
@@ -246,7 +393,6 @@ Hex_Editor::Hex_Editor(uint8_t cols, uint8_t rows, Adafruit_SSD1306 *oled, Keypa
 }
 
 void Hex_Editor::on_key_5() {
-    Serial.println("Hex_Editor::on_key_5()");
     // change value in buffer
     uint8_t new_value;
     beep(1);
@@ -265,7 +411,6 @@ void Hex_Editor::on_key_5() {
 }
 
 void Hex_Editor::on_key_0() {
-    Serial.println("Hex_Editor::on_key_0()");
     // save page
     eeprom->write(eeprom_offset+page*cols*rows, buffer, page==last_page ? last_cursor+1 : rows*cols);
     beep(2);
@@ -273,7 +418,6 @@ void Hex_Editor::on_key_0() {
 }
 
 void Hex_Editor::on_key_F() {
-    Serial.println("Hex_Editor::on_key_F()");
     // exit Hex_Editor without saving
     stop = true;
 }
@@ -309,12 +453,23 @@ void Hex_Editor::show_page() {
 
 void Hex_Editor::show_info() {
     oled->clear();
-    oled->drawString(0,0, String(" HEX EDITOR "));
-    oled->drawString(0,2, String("5  EDIT BYTE"));
-    oled->drawString(0,4, String("0  SAVE PAGE"));
-    oled->drawString(0,6, String("F  EXIT"));
-    oled->drawString(25-13, 8, String("PRESS ANY KEY"));
+    oled->drawStringLine(0, " HEX EDITOR");
+    oled->drawStringLine(2, "5  EDIT BYTE");
+    oled->drawStringLine(4, "0  SAVE PAGE");
+    oled->drawStringLine(6, "F  EXIT");
+    oled->drawStringLine(8, "            PRESS ANY KEY");
     oled->show();
     oled->show(0,0, 24,0, true);
     keypad->waitForKey();
 }
+
+void Hex_Editor::empty_menu() {
+    oled->clear();
+    oled->drawStringLine(0, "     NO MEMORY");
+    oled->drawStringLine(8, "            PRESS ANY KEY");
+    oled->show();
+    oled->show(0,0, 24,0, true);
+    keypad->waitForKey();
+    stop = true;
+}
+

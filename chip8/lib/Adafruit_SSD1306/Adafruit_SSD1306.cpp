@@ -519,8 +519,26 @@ void Adafruit_SSD1306::drawString(uint8_t x, uint8_t y, char *s, uint8_t len) {
     }
 }
 
+void Adafruit_SSD1306::drawString(uint8_t x, uint8_t y, char *s) {
+    drawString(x, y, s, strlen(s));
+}
+
 void Adafruit_SSD1306::drawString(uint8_t x, uint8_t y, String s) {
     drawString(x, y, s.c_str(), s.length());
+}
+
+void Adafruit_SSD1306::drawStringLine(uint8_t y, char *s) {
+    bool found_end = false;
+    for (uint8_t x=0; x<ASCII_WIDTH; x++) {
+        if (s[x] == 0) {
+            found_end = true;
+        }
+        if (found_end) {
+            drawChar(x, y, ' ');
+        } else {
+            drawChar(x, y, s[x]);
+        }
+    }
 }
 
 void Adafruit_SSD1306::get_glyph(char c, uint8_t *b0, uint8_t *b1, uint8_t *b2) {

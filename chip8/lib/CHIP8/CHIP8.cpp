@@ -56,6 +56,7 @@ void CPU::load(uint16_t eeprom_offset, uint16_t len) {
 }
 
 void CPU::run() {
+    Serial.println("CPU::run()");
     uint16_t opcode;
     next_tick = (uint32_t)micros() + 1000000/clock_speed;
     while (1) {
