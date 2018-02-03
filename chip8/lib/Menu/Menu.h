@@ -10,8 +10,6 @@
 #define MOD(a,b) ((a)>=0 ? (a)%(b) : (((a)%(b)) + (b)) % (b))
 #define MIN(a,b) ((a)<(b) ? (a) : (b))
 
-#define HEX_EDITOR_OFFSET 0x200
-
 typedef enum {c_UP, c_RIGHT, c_DOWN, c_LEFT} cursor_move;
 typedef struct {
     uint16_t size;
@@ -24,13 +22,12 @@ class Menu {
         void begin(uint16_t eeprom_offset, uint16_t item_count);
 
     protected:
-        virtual void on_key_5() = 0;
-        virtual void on_key_0() = 0;
-        virtual void on_key_F() = 0;
+        virtual void on_key(char key) = 0;
         virtual void on_cursor_move() = 0;
         virtual void show_page() = 0;
         virtual void show_info() = 0;
         virtual void empty_menu() = 0;
+        void init_page();
         void beep(uint8_t n);
         void move_cursor(cursor_move m);
         void update_cursor();
@@ -60,15 +57,17 @@ class Menu {
 class Hex_Editor : public Menu {
     public:
         Hex_Editor(uint8_t cols, uint8_t rows, Adafruit_SSD1306 *oled, Keypad *keypad, I2C_EEPROM *eeprom, CPU *cpu, uint8_t buzzer_pin);
+        void set_offset(uint16_t offset);
 
     protected:
-        void on_key_5();
-        void on_key_0();
-        void on_key_F();
+        void on_key(char key);
         void on_cursor_move();
         void show_page();
         void show_info();
         void empty_menu();
+
+    private:
+        uint16_t hex_editor_offset;
 };
 
 class ROM_Menu : public Menu {
@@ -76,9 +75,7 @@ class ROM_Menu : public Menu {
         ROM_Menu(uint8_t cols, uint8_t rows, Adafruit_SSD1306 *oled, Keypad *keypad, I2C_EEPROM *eeprom, CPU *cpu, uint8_t buzzer_pin, Hex_Editor *hex_editor);
 
     private:
-        void on_key_5();
-        void on_key_0();
-        void on_key_F();
+        void on_key(char key);
         void on_cursor_move();
         void show_page();
         void show_info();

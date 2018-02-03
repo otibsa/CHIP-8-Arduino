@@ -23,14 +23,6 @@ void Menu::begin(uint16_t eeprom_offset, uint16_t item_count) {
     this->eeprom_offset = eeprom_offset;
     this->item_count = item_count;
 
-    memset(buffer, 0, sizeof(buffer));
-    stop = false;
-    page = 0;
-    cursor = 0;
-    old_page = 1;
-    old_cursor = 1;
-    last_page = (item_count-1)/(cols*rows);
-    last_cursor = (item_count-1)%(cols*rows);
     oled->clear();
     oled->show();
     oled->set_mode(ASCII_MODE);
@@ -39,13 +31,14 @@ void Menu::begin(uint16_t eeprom_offset, uint16_t item_count) {
     if (item_count == 0) {
         empty_menu();
     }
+    init_page();
 
     while (!stop) {
-        Serial.println();
-        Serial.print(F("page: "));
-        Serial.println(page);
-        Serial.print(F("cursor: "));
-        Serial.println(cursor);
+        // Serial.println();
+        // Serial.print(F("page: "));
+        // Serial.println(page);
+        // Serial.print(F("cursor: "));
+        // Serial.println(cursor);
         if (page != old_page) {
             show_page();
         }
@@ -57,15 +50,6 @@ void Menu::begin(uint16_t eeprom_offset, uint16_t item_count) {
         old_page = page;
         old_cursor = cursor;
         switch (c) {
-        case '0':
-            on_key_0();
-            break;
-        case '5':
-            on_key_5();
-            break;
-        case 'F':
-            on_key_F();
-            break;
         case '2':
             move_cursor(c_UP);
             break;
@@ -78,12 +62,32 @@ void Menu::begin(uint16_t eeprom_offset, uint16_t item_count) {
         case '8':
             move_cursor(c_DOWN);
             break;
+        default:
+            on_key(c);
+            break;
         }
         if (page == last_page) {
             cursor = MIN(cursor, last_cursor);
         }
     }
     Serial.println(F("------- finished Menu::begin() --------"));
+}
+
+void Menu::init_page() {
+    stop = false;
+    modified_page = false;
+    page = 0;
+    cursor = 0;
+    old_page = 0;
+    old_cursor = 0;
+    last_page = (item_count-1)/(cols*rows);
+    last_cursor = (item_count-1)%(cols*rows);
+    oled->clear();
+    oled->show();
+    oled->set_mode(ASCII_MODE);
+    show_page();
+    update_cursor();
+    on_cursor_move();
 }
 
 void Menu::move_cursor(cursor_move m) {
@@ -154,34 +158,60 @@ ROM_Menu::ROM_Menu(uint8_t cols, uint8_t rows, Adafruit_SSD1306 *oled, Keypad *k
     roms = (CHIP8_rom*) buffer;
 }
 
-void ROM_Menu::on_key_5() {
-    // start ROM
-    oled->set_mode(RAW_MODE);
-    oled->clear();
-    oled->show();
-    cpu->begin();
-    cpu->load(roms[cursor].address, roms[cursor].size);
-    beep(3);
-    cpu->run();
-    // cpu->run() will probably not return
-    oled->clear();
-    oled->set_mode(ASCII_MODE);
-}
-
-void ROM_Menu::on_key_0() {
-    // edit ROM
-    oled->clear();
-    oled->show();
-    beep(2);
-    hex_editor->begin(roms[cursor].address, roms[cursor].size);
-    beep(2);
-    show_page();
-    update_cursor();
-}
-
-void ROM_Menu::on_key_F() {
-    // upload/input new ROM
-    new_rom();
+void ROM_Menu::on_key(char key) {
+    switch (key) {
+        case '5':
+            // start ROM
+            oled->set_mode(RAW_MODE);
+            oled->clear();
+            oled->show();
+            cpu->begin();
+            cpu->load(roms[cursor].address, roms[cursor].size);
+            beep(3);
+            cpu->run();
+            // cpu->run() will probably not return
+            oled->clear();
+            oled->set_mode(ASCII_MODE);
+            break;
+        case '0':
+            // edit ROM
+            oled->clear();
+            oled->show();
+            beep(2);
+            Serial.print(F("Starting Hex_Editor at address 0x"));
+            Serial.println(roms[cursor].address, HEX);
+            hex_editor->set_offset(0x200);
+            hex_editor->begin(roms[cursor].address, roms[cursor].size);
+            beep(2);
+            show_page();
+            update_cursor();
+            break;
+        case 'F':
+            // upload/input new ROM
+            new_rom();
+            break;
+        case 'D':
+            // delete last ROM
+            if (item_count) {
+                item_count--;
+                eeprom->write(0, item_count);
+            }
+            if (item_count == 0) {
+                empty_menu();
+            }
+            init_page();
+            break;
+        case 'A':
+            // hex editor at 0
+            oled->clear();
+            oled->show();
+            beep(6);
+            hex_editor->set_offset(0);
+            hex_editor->begin(0, 0x7FFF);
+            show_page();
+            update_cursor();
+            break;
+    }
 }
 
 void ROM_Menu::new_rom() {
@@ -309,18 +339,7 @@ void ROM_Menu::new_rom() {
         // input over keypad, i.e. hex_editor
     }
 
-    page = 0;
-    cursor = 0;
-    old_page = 1;
-    old_cursor = 1;
-    last_page = (item_count-1)/(cols*rows);
-    last_cursor = (item_count-1)%(cols*rows);
-
-    oled->clear();
-    oled->show();
-    show_page();
-    // round up size and store at new_rom_start
-    // ask for name
+    init_page();
 }
 
 void ROM_Menu::on_cursor_move() {
@@ -360,8 +379,9 @@ void ROM_Menu::show_info() {
     oled->clear();
     oled->drawStringLine(0, " INSTALLED ROMS");
     oled->drawStringLine(2, "5  START ROM");
-    oled->drawStringLine(4, "0  EDIT ROM");
-    oled->drawStringLine(6, "F  NEW ROM");
+    oled->drawStringLine(3, "0  EDIT ROM");
+    oled->drawStringLine(4, "F  NEW ROM");
+    oled->drawStringLine(5, "D  DELETE LAST ROM");
     oled->drawStringLine(8, "            PRESS ANY KEY");
     oled->show();
     oled->show(0,0, 24,0, true);
@@ -392,40 +412,42 @@ Hex_Editor::Hex_Editor(uint8_t cols, uint8_t rows, Adafruit_SSD1306 *oled, Keypa
 {
 }
 
-void Hex_Editor::on_key_5() {
-    // change value in buffer
-    uint8_t new_value;
-    beep(1);
-    new_value = from_hex(keypad->waitForKey());
-    oled->drawChar(x_step*(cursor%cols), cursor/cols, to_hex(new_value&0xF));
-    oled->show(x_step*(cursor%cols), cursor/cols, x_step*(cursor%cols), cursor/cols);
+void Hex_Editor::on_key(char key) {
+    switch (key) {
+        case '5':
+            // change value in buffer
+            uint8_t new_value;
+            beep(1);
+            new_value = from_hex(keypad->waitForKey());
+            oled->drawChar(x_step*(cursor%cols), cursor/cols, to_hex(new_value&0xF));
+            oled->show(x_step*(cursor%cols), cursor/cols, x_step*(cursor%cols), cursor/cols);
 
-    new_value <<= 4;
-    new_value |= from_hex(keypad->waitForKey());
-    oled->drawChar(1+x_step*(cursor%cols), cursor/cols, to_hex(new_value&0xF));
-    oled->show(1+x_step*(cursor%cols), cursor/cols, 1+x_step*(cursor%cols), cursor/cols);
-    buffer[cursor] = new_value;
-    modified_page = true;
-    update_cursor();
-    beep(1);
-}
-
-void Hex_Editor::on_key_0() {
-    // save page
-    eeprom->write(eeprom_offset+page*cols*rows, buffer, page==last_page ? last_cursor+1 : rows*cols);
-    beep(2);
-    modified_page = false;
-}
-
-void Hex_Editor::on_key_F() {
-    // exit Hex_Editor without saving
-    stop = true;
+            new_value <<= 4;
+            new_value |= from_hex(keypad->waitForKey());
+            oled->drawChar(1+x_step*(cursor%cols), cursor/cols, to_hex(new_value&0xF));
+            oled->show(1+x_step*(cursor%cols), cursor/cols, 1+x_step*(cursor%cols), cursor/cols);
+            buffer[cursor] = new_value;
+            modified_page = true;
+            update_cursor();
+            beep(1);
+            break;
+        case '0':
+            // save page
+            eeprom->write(eeprom_offset+page*cols*rows, buffer, page==last_page ? last_cursor+1 : rows*cols);
+            beep(2);
+            modified_page = false;
+            break;
+        case 'F':
+            // exit Hex_Editor without saving
+            stop = true;
+            break;
+    }
 }
 
 void Hex_Editor::on_cursor_move() {
     // show current address with offset!
     char addr[4];
-    hex_string(HEX_EDITOR_OFFSET+page*cols*rows+cursor, addr);
+    hex_string(hex_editor_offset+page*cols*rows+cursor, addr);
     oled->drawString(21, 8, addr, 4);
     oled->show(21, 8, 24, 8, true);
 }
@@ -436,6 +458,7 @@ void Hex_Editor::show_page() {
     if (modified_page) {
         // save old page
         eeprom->write(eeprom_offset+old_page*cols*rows, buffer, old_page==last_page ? last_cursor+1 : rows*cols);
+        beep(2);
     }
     modified_page = false;
     oled->clear();
@@ -447,6 +470,9 @@ void Hex_Editor::show_page() {
         oled->drawChar(1+x_step*(i%cols), i/cols, to_hex(buffer[i]&0xF));
 
         oled->drawChar(2+x_step*(i%cols), i/cols, ' ');
+    }
+    if (page == 0) {
+        beep(1);
     }
     oled->show();
 }
@@ -473,3 +499,6 @@ void Hex_Editor::empty_menu() {
     stop = true;
 }
 
+void Hex_Editor::set_offset(uint16_t offset) {
+    hex_editor_offset = offset;
+}
