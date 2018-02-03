@@ -218,19 +218,18 @@ void ROM_Menu::new_rom() {
     oled->show();
     if (c == '1') {
         beep(1);
-        uint8_t buffer[64];
+        uint8_t recv[16];
         uint8_t byte_count;
         bool stopped = false;
-        String s;
+        char tmp[5] = {0};
         // input over Serial
-        s = String("SEND ROM");
-        Serial.println(s);
-        oled->drawStringLine(0, s.c_str());
+        Serial.println(F("SEND ROM"));
+        oled->drawStringLine(0, "SEND ROM");
         oled->show();
         size = 0;
         while(!stopped) {
             byte_count = 0;
-            while (byte_count < 64) {
+            while (byte_count < 16) {
                 // receive single bytes until page full or interrupt
 
                 c = keypad->getKey();
@@ -239,12 +238,13 @@ void ROM_Menu::new_rom() {
                     break;
                 }
                 if (Serial.available()) {
-                    buffer[byte_count++] = Serial.read();
+                    recv[byte_count++] = Serial.read();
                 }
             }
             if (byte_count) {
                 // ACK
-                eeprom->write(address, buffer, byte_count);
+                eeprom->write(address, recv, byte_count);
+                //Serial.write(recv, byte_count);
                 beep(1);
                 address += byte_count;
                 size += byte_count;
@@ -255,9 +255,9 @@ void ROM_Menu::new_rom() {
             // flush input
             Serial.read();
         }
-        s = String("NAME?");
-        Serial.println(s);
-        oled->drawStringLine(1, s.c_str());
+        // ask for name
+        Serial.println(F("NAME?"));
+        oled->drawStringLine(1, "NAME?");
         oled->show();
         i=0;
         while (i<8) {
@@ -273,18 +273,18 @@ void ROM_Menu::new_rom() {
                 }
             }
         }
+        // round up size and store at new_rom_start
         size += 32;
         size = size - (size%64) + 64;
         oled->clear();
-        s = String("Write ");
-        s += String(size);
-        s += " B?";
-        Serial.println(s);
-        oled->drawStringLine(0, s.c_str());
-        s = String("AT 0x");
-        s += String(new_rom_start+2+8, HEX);
-        Serial.println(s);
-        oled->drawStringLine(2, s.c_str());
+        hex_string(size, tmp);
+        Serial.println(size);
+        oled->drawStringLine(0, "WRITE 0x     B");
+        oled->drawString(8, 0, tmp, 4);
+        hex_string(new_rom_start+2+8, tmp);
+        Serial.println(new_rom_start+2+8, HEX);
+        oled->drawStringLine(2, "AT 0x");
+        oled->drawString(5, 2, tmp, 4);
         oled->show();
         while (1) {
             c = keypad->waitForKey();

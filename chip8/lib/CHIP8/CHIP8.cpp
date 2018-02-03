@@ -1,5 +1,7 @@
 #include <CHIP8.h>
 
+#define DEBUG 1
+
 CPU::CPU(Adafruit_SSD1306 *display, Keypad *keypad, SpiRAM *memory, I2C_EEPROM *eeprom, void (*tick_callback)(), uint8_t buzzer_pin, uint16_t clock_speed) : 
     display(display),
     keypad(keypad),
@@ -33,22 +35,29 @@ void CPU::begin() {
 }
 
 void CPU::load(uint16_t eeprom_offset, uint16_t len) {
-    uint8_t buffer[64] = {0};
-    uint8_t buf_len = 64;
+    uint8_t buffer[32] = {0};
+    uint8_t buf_len = 32;
     uint16_t i=0;
     Serial.println("Loading program:");
     while (i<len) {
-        if (len-i < 64) {
+        if (len-i < 32) {
             buf_len = len-i;
         }
         buf_len = eeprom->read(eeprom_offset+i, buffer, buf_len);
         for (uint8_t j=0; j<buf_len; j++) {
+            if (j%8 == 0 && j>0) {
+                Serial.print(F(" "));
+            }
+            if (j%16 == 0 && j>0) {
+                Serial.println();
+            }
             print_hex(buffer[j]);
             Serial.print(" ");
         }
         Serial.println();
         memory->write_stream(memory_offset+pc+i, (char*)buffer, buf_len);
         i += buf_len;
+        delay(10);
     }
     Serial.print("Done, (");
     Serial.print(i);
@@ -65,11 +74,13 @@ void CPU::run() {
         opcode = swap_u16(opcode);
         pc += 2;
 
-        // Serial.print("PC: 0x");
-        // print_hex(pc-2);
-        // Serial.print(" OPCODE: ");
-        // print_hex(opcode);
-        // Serial.println();
+#ifdef DEBUG
+        Serial.print("PC: 0x");
+        print_hex(pc-2);
+        Serial.print(" OPCODE: ");
+        print_hex(opcode);
+        Serial.println();
+#endif
 
         // execute
         execute(opcode);
@@ -309,9 +320,17 @@ void CPU::clock_tick() {
     if (ticks % (clock_speed / 60) == 0) {
         // tick the timers
         if (delay_ctr > 0) {
+#ifdef DEBUG
+            Serial.print(F("DELAY: "));
+            Serial.println(delay_ctr);
+#endif
             delay_ctr--;
         }
         if (sound_ctr > 0) {
+#ifdef DEBUG
+            Serial.print(F("SOUND: "));
+            Serial.println(sound_ctr);
+#endif
             analogWrite(buzzer_pin, 127);
             sound_ctr--;
             if (sound_ctr == 0) {
