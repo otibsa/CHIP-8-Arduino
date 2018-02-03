@@ -244,12 +244,14 @@ void CPU::execute(uint16_t opcode) {
         case 0xE000:
             if ((opcode & 0xF0FF) == 0xE09E) {
                 // SKP Vx
-                if (keypad->isPressed(to_hex(V[x]))) {
+                keypad->getKeys();
+                if (keypad->isPressedOrHeld(to_hex(V[x]))) {
                     pc += 2;
                 }
             } else if ((opcode & 0xF0FF) == 0xE0A1) {
                 // SKNP Vx
-                if (!keypad->isPressed(to_hex(V[x]))) {
+                keypad->getKeys();
+                if (!keypad->isPressedOrHeld(to_hex(V[x]))) {
                     pc += 2;
                 }
             }
@@ -333,9 +335,9 @@ void CPU::clock_tick() {
 #endif
             analogWrite(buzzer_pin, 127);
             sound_ctr--;
-            if (sound_ctr == 0) {
-                analogWrite(buzzer_pin, 0);
-            }
+        }
+        if (sound_ctr == 0) {
+            analogWrite(buzzer_pin, 0);
         }
     }
     if (next_tick > now) {

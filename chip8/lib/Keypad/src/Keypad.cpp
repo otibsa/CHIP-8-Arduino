@@ -185,6 +185,16 @@ bool Keypad::isPressed(char keyChar) {
 	return false;	// Not pressed.
 }
 
+bool Keypad::isPressedOrHeld(char keyChar) {
+	for (byte i=0; i<LIST_MAX; i++) {
+		if ( key[i].kchar == keyChar ) {
+			if ( (key[i].kstate == PRESSED || key[i].kstate == HOLD) )
+				return true;
+		}
+	}
+	return false;	// Not pressed.
+}
+
 // Search by character for a key in the list of active keys.
 // Returns -1 if not found or the index into the list of active keys.
 int Keypad::findInList (char keyChar) {

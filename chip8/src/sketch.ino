@@ -37,7 +37,7 @@ Adafruit_SSD1306 oled(OLED_RESET);
 I2C_EEPROM eeprom(EEPROM_ADDRESS);
 
 void tick_callback();
-CPU cpu(&oled, &keypad, &SpiRam, &eeprom, 0/*tick_callback*/, BUZZER_PIN, 1200);
+CPU cpu(&oled, &keypad, &SpiRam, &eeprom, 0/*tick_callback*/, BUZZER_PIN, 300);
 
 bool button_before = false;
 bool button_now = false;
@@ -47,6 +47,7 @@ void beep_n(int n);
 void show_roms();
 
 void setup() {
+    uint8_t rom_count;
     Serial.begin(9600);
     Wire.begin();
     Wire.setClock(400000);
@@ -63,15 +64,6 @@ void setup() {
     ROM_Menu rom_menu(2, 8, &oled, &keypad, &eeprom, &cpu, BUZZER_PIN, &hex_editor);
 
     show_roms();
-    uint8_t rom_count;
-    // Serial.println(F("128 Bytes: "));
-    // for (uint16_t i=0; i<128; i++) {
-    //     if (i%16 == 0) {
-    //         Serial.println();
-    //     }
-    //     print_hex(eeprom.read(i));
-    //     Serial.print(", ");
-    // }
     while (1) {
         rom_count = eeprom.read(0);
         Serial.print(F("ROM count is "));
@@ -113,7 +105,7 @@ void tick_callback() {
     while (1) {
         button_before = button_now;
         button_now = digitalRead(BUTTON_PIN) == HIGH;
-        if (button_before && button_now) {
+        if (!button_before && button_now) {
             // continue CPU on rising edge
             break;
         }

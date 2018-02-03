@@ -90,6 +90,7 @@ public:
 	KeyState getState();
 	void begin(char *userKeymap);
 	bool isPressed(char keyChar);
+	bool isPressedOrHeld(char keyChar);
 	void setDebounceTime(uint);
 	void setHoldTime(uint);
 	void addEventListener(void (*listener)(char));
