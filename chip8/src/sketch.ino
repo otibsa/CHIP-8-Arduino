@@ -37,7 +37,7 @@ Adafruit_SSD1306 oled(OLED_RESET);
 I2C_EEPROM eeprom(EEPROM_ADDRESS);
 
 void tick_callback();
-CPU cpu(&oled, &keypad, &SpiRam, &eeprom, 0/*tick_callback*/, BUZZER_PIN, 300);
+CPU cpu(&oled, &keypad, &SpiRam, &eeprom, 0/*tick_callback*/, BUZZER_PIN, 600);
 
 bool button_before = false;
 bool button_now = false;
@@ -50,7 +50,7 @@ void setup() {
     uint8_t rom_count;
     Serial.begin(9600);
     Wire.begin();
-    Wire.setClock(400000);
+    //Wire.setClock(400000);
     pinMode(BUZZER_PIN, OUTPUT);
     analogWrite(BUZZER_PIN, 0);
     pinMode(SS_PIN_RAM, OUTPUT);  // necessary for analog pin A0
